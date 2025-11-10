@@ -99,12 +99,12 @@ echo "  IP: ${IP}"
 echo "========================================="
 
 echo
-echo "[1/8] Installing dependencies..."
+echo "[1/9] Installing dependencies..."
 apt-get update -qq
 apt-get install -y curl unzip jq ca-certificates openssl
 
 echo
-echo "[2/8] Creating gophish user..."
+echo "[2/9] Creating gophish user..."
 if ! id -u "${GOPHISH_USER}" >/dev/null 2>&1; then
   useradd --system --create-home --home-dir /home/${GOPHISH_USER} -s /usr/sbin/nologin ${GOPHISH_USER}
   echo "  ✓ User '${GOPHISH_USER}' created"
@@ -113,7 +113,7 @@ else
 fi
 
 echo
-echo "[3/8] Downloading latest GoPhish release..."
+echo "[3/9] Downloading latest GoPhish release..."
 API_JSON=$(curl -s "https://api.github.com/repos/gophish/gophish/releases/latest")
 GOPHISH_TAG=$(echo "$API_JSON" | jq -r .tag_name)
 echo "  Latest version: ${GOPHISH_TAG}"
@@ -133,7 +133,7 @@ curl -L -o gophish.zip "$GOPHISH_ZIP_URL"
 unzip -q gophish.zip -d gophish_unpacked
 
 echo
-echo "[4/8] Installing to ${INSTALL_DIR}..."
+echo "[4/9] Installing to ${INSTALL_DIR}..."
 # Stop service if running
 if systemctl is-active --quiet gophish 2>/dev/null; then
   echo "  Stopping existing GoPhish service..."
@@ -154,7 +154,7 @@ chmod +x "${INSTALL_DIR}/gophish"
 echo "  ✓ GoPhish installed"
 
 echo
-echo "[5/8] Generating SSL certificate (self-signed with SAN=${IP})..."
+echo "[5/9] Generating SSL certificate (self-signed with SAN=${IP})..."
 mkdir -p "${SSL_DIR}"
 chown root:root "${SSL_DIR}"
 chmod 755 "${SSL_DIR}"
@@ -194,7 +194,7 @@ chmod 644 "${SSL_DIR}/gophish-ip.crt"
 echo "  ✓ Certificate created at ${SSL_DIR}"
 
 echo
-echo "[6/8] Creating config.json..."
+echo "[6/9] Creating config.json..."
 CONFIG_PATH="${INSTALL_DIR}/config.json"
 cat > "${CONFIG_PATH}" <<JSON
 {
@@ -230,7 +230,7 @@ chmod 640 "${CONFIG_PATH}"
 echo "  ✓ Configuration saved"
 
 echo
-echo "[7/8] Creating systemd service..."
+echo "[7/9] Creating systemd service..."
 cat > "${SERVICE_FILE}" <<'SERVICE'
 [Unit]
 Description=GoPhish Service
@@ -255,7 +255,7 @@ systemctl enable gophish
 echo "  ✓ Service created and enabled"
 
 echo
-echo "[8/8] Setting final permissions and starting service..."
+echo "[8/9] Setting final permissions and starting service..."
 chown -R ${GOPHISH_USER}:${GOPHISH_USER} "${INSTALL_DIR}"
 chown -R ${GOPHISH_USER}:${GOPHISH_USER} "${SSL_DIR}"
 chmod 640 "${SSL_DIR}/gophish-ip.key"
@@ -265,6 +265,23 @@ systemctl start gophish
 
 # Wait a moment for service to start
 sleep 2
+
+echo
+echo "[9/9] Configuring firewall..."
+# Check if ufw is installed and active
+if command -v ufw >/dev/null 2>&1; then
+  if ufw status | grep -q "Status: active"; then
+    echo "  Detected UFW firewall - adding rules..."
+    ufw allow 3333/tcp comment 'GoPhish Admin Panel' >/dev/null 2>&1
+    ufw allow 8080/tcp comment 'GoPhish Phishing Server' >/dev/null 2>&1
+    echo "  ✓ Firewall rules added (ports 3333, 8080)"
+  else
+    echo "  ℹ️  UFW is installed but not active - skipping firewall configuration"
+  fi
+else
+  echo "  ℹ️  UFW not found - skipping firewall configuration"
+  echo "  ⚠️  You may need to manually open ports 3333 and 8080"
+fi
 
 echo
 echo "========================================="
@@ -282,12 +299,14 @@ echo
 echo "⚠️  Security Notes:"
 echo "• The certificate is self-signed - browsers will show a warning (this is normal)"
 echo "• Make sure to change the default password after first login"
-echo "• Configure your firewall to restrict access to ports 3333 and 8080"
+echo "• Firewall ports 3333 and 8080 have been opened (if UFW is active)"
+echo "• For Cloud VMs (AWS/Azure/GCP), also configure Security Groups/NSG to allow these ports"
 echo
 echo "🔧 Useful Commands:"
 echo "  Restart: sudo systemctl restart gophish"
 echo "  Stop:    sudo systemctl stop gophish"
 echo "  Logs:    sudo journalctl -u gophish -n 100"
+echo "  Firewall: sudo ufw status"
 echo
 echo "========================================="
 
