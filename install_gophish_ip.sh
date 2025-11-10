@@ -283,6 +283,9 @@ else
   echo "  ⚠️  You may need to manually open ports 3333 and 8080"
 fi
 
+# Wait a bit more to ensure GoPhish has fully started and generated password
+sleep 3
+
 echo
 echo "========================================="
 echo "  ✅ Installation Complete!"
@@ -291,10 +294,25 @@ echo
 echo "Admin Panel:     https://${IP}:3333"
 echo "Phishing Server: http://${IP}:8080"
 echo
+echo "🔑 Login Credentials:"
+echo "───────────────────────────────────────"
+# Extract password from logs
+ADMIN_PASSWORD=$(journalctl -u gophish --no-pager | grep -oP 'Please login with the username admin and the password \K[a-f0-9]+' | tail -n1)
+if [ -n "$ADMIN_PASSWORD" ]; then
+  echo "Username: admin"
+  echo "Password: ${ADMIN_PASSWORD}"
+else
+  echo "⚠️  Could not retrieve password from logs"
+  echo "Please run: sudo journalctl -u gophish | grep 'Please login with'"
+fi
+echo "───────────────────────────────────────"
+echo
 echo "📋 Next Steps:"
-echo "1. Check service status: sudo systemctl status gophish"
-echo "2. View logs: sudo journalctl -u gophish -f"
-echo "3. Find initial password in logs: sudo journalctl -u gophish | grep 'Please login with'"
+echo "1. Open your browser and go to: https://${IP}:3333"
+echo "2. Login with the credentials shown above"
+echo "3. Change your password after first login"
+echo "4. Check service status: sudo systemctl status gophish"
+echo "5. View logs: sudo journalctl -u gophish -f"
 echo
 echo "⚠️  Security Notes:"
 echo "• The certificate is self-signed - browsers will show a warning (this is normal)"
